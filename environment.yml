@@ -1,10 +1,17 @@
 name: pbt_new_metrics
 channels:
   - conda-forge
+  - bioconda
   - defaults
 dependencies:
   - python=3.10
+  - pip
+  - biopython
   - pandas
   - scipy
-  - biopython
-  - setuptools
+  - numpy
+  - r-base=4.2
+  - r-dplyr
+  - r-readr
+  - r-ggplot2
+  - r-ggridges

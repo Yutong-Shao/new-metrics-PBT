@@ -5,6 +5,7 @@ import sys
 import math
 import time
 import argparse
+import subprocess
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from Bio.SeqIO.FastaIO import SimpleFastaParser
@@ -550,6 +551,8 @@ def find_best_fit_model_by_cvm_entropy(file_path):
         print(f"{model:<35} {val:>15.6f}")
     print()
 
+    return best_model, sorted_models
+
 def find_best_fit_model_by_cvm_diversity(file_path):
     global printed_model_adequacy_header
 
@@ -576,6 +579,252 @@ def find_best_fit_model_by_cvm_diversity(file_path):
     for model, val in sorted_models.items():
         print(f"{model:<35} {val:>15.6f}")
     print()
+
+    return best_model, sorted_models
+
+def write_md_best_model_by_mean_entropy(file_path, md_logger):
+    df = pd.read_csv(file_path, sep="\t")
+
+    orig_col = "Entropy original data"
+    avg_col  = "Average entropy simulated data"
+
+    df["abs_diff"] = (df[orig_col] - df[avg_col]).abs()
+    df_sorted = df.sort_values(by="abs_diff")
+
+    best_model = df_sorted.iloc[0]["Model"]
+
+    md_logger.write_heading("Mean Difference (Entropy)")
+    md_logger.write_line(f"**Best-fit model according to Mean Difference (entropy):** `{best_model}`\n")
+    md_logger.write_line("List of models sorted by |original − simulated| for entropy:\n")
+
+    header = ["Model", orig_col, avg_col, "SD simulated", "Z-score", "abs(Diff)"]
+    rows = [
+        [
+            row["Model"],
+            f"{row[orig_col]:.6f}",
+            f"{row[avg_col]:.6f}",
+            f"{row['SD simulated data']:.6f}",
+            f"{row['Z-score']:.3f}",
+            f"{row['abs_diff']:.6f}"
+        ]
+        for _, row in df_sorted.iterrows()
+    ]
+    md_logger.write_table(header, rows)
+
+def write_md_best_model_by_mean_diversity(file_path, md_logger):
+    df = pd.read_csv(file_path, sep="\t")
+
+    orig_col = "Diversity original data"
+    avg_col  = "Average diversity simulated data"
+
+    df["abs_diff"] = (df[orig_col] - df[avg_col]).abs()
+    df_sorted = df.sort_values(by="abs_diff")
+
+    best_model = df_sorted.iloc[0]["Model"]
+
+    md_logger.write_heading("Mean Difference (Diversity)")
+    md_logger.write_line(f"**Best-fit model according to Mean Difference (diversity):** `{best_model}`\n")
+    md_logger.write_line("List of models sorted by |original − simulated| for diversity:\n")
+
+    header = ["Model", orig_col, avg_col, "SD simulated", "Z-score", "abs(Diff)"]
+    rows = [
+        [
+            row["Model"],
+            f"{row[orig_col]:.6f}",
+            f"{row[avg_col]:.6f}",
+            f"{row['SD simulated data']:.6f}",
+            f"{row['Z-score']:.3f}",
+            f"{row['abs_diff']:.6f}"
+        ]
+        for _, row in df_sorted.iterrows()
+    ]
+    md_logger.write_table(header, rows)
+
+def write_md_best_model_by_cvm_entropy(best_model, sorted_models, md_logger):
+    md_logger.write_heading("Cramer-von Mises Test On Sitewise Entropy")
+    md_logger.write_line(f"**Best-fit model:** `{best_model}`\n")
+    md_logger.write_line("List of models sorted by W² statistic`:\n")
+
+    header = ["Model", "W2_statistic"]
+    rows = [[model, f"{val:.6f}"] for model, val in sorted_models.items()]
+    md_logger.write_table(header, rows)
+
+def write_md_best_model_by_cvm_diversity(best_model, sorted_models, md_logger):
+    md_logger.write_heading("Cramer-von Mises Test On Sitewise Diversity")
+    md_logger.write_line(f"**Best-fit model:** `{best_model}`\n")
+    md_logger.write_line("List of models sorted by W² statistic:\n")
+
+    header = ["Model", "W2_statistic"]
+    rows = [[model, f"{val:.6f}"] for model, val in sorted_models.items()]
+    md_logger.write_table(header, rows)
+
+# Plotting
+
+def run_entropy_ridge_plot(sim_root, md_logger=None,
+                              width=8, height=5, dpi=900,
+                              rscript_exe="Rscript"):
+    sim_root = os.path.abspath(sim_root)
+
+    out_png_path = os.path.join(sim_root, "mean_entropy.png")
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    r_script_path = os.path.join(script_dir, "mean_entropy.R")
+    if not os.path.isfile(r_script_path):
+        raise FileNotFoundError(f"R script not found: {r_script_path}")
+
+    cmd = [
+        rscript_exe,
+        r_script_path,
+        sim_root,
+        out_png_path,
+        str(width),
+        str(height),
+        str(dpi),
+    ]
+
+    try:
+        completed = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        if completed.stdout:
+            print(completed.stdout.strip())
+        if completed.stderr:
+            print(completed.stderr.strip())
+    except FileNotFoundError:
+        raise RuntimeError("Rscript not found. Please make sure R is installed and Rscript is in your PATH.")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"R script execution failed (exit code {e.returncode}):\nSTDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}"
+        )
+
+    if md_logger is not None:
+        md_logger.write_line("\n![Entropy ridge plot](mean_entropy.png)\n")
+
+    return out_png_path
+
+def run_diversity_ridge_plot(sim_root, md_logger=None,
+                              width=8, height=5, dpi=900,
+                              rscript_exe="Rscript"):
+    sim_root = os.path.abspath(sim_root)
+
+    out_png_path = os.path.join(sim_root, "mean_diversity.png")
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    r_script_path = os.path.join(script_dir, "mean_diversity.R")
+    if not os.path.isfile(r_script_path):
+        raise FileNotFoundError(f"R script not found: {r_script_path}")
+
+    cmd = [
+        rscript_exe,
+        r_script_path,
+        sim_root,
+        out_png_path,
+        str(width),
+        str(height),
+        str(dpi),
+    ]
+
+    try:
+        completed = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        if completed.stdout:
+            print(completed.stdout.strip())
+        if completed.stderr:
+            print(completed.stderr.strip())
+    except FileNotFoundError:
+        raise RuntimeError("Rscript not found. Please make sure R is installed and Rscript is in your PATH.")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"R script execution failed (exit code {e.returncode}):\nSTDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}"
+        )
+
+    if md_logger is not None:
+        md_logger.write_line("\n![Diversity ridge plot](mean_diversity.png)\n")
+
+    return out_png_path
+
+def run_cvm_entropy_plot(sim_root, md_logger=None,
+                         width=8, height=5, dpi=900,
+                         rscript_exe="Rscript"):
+    sim_root = os.path.abspath(sim_root)
+
+    tsv_path = os.path.join(sim_root, "cvm_entropy_results.txt")
+    if not os.path.isfile(tsv_path):
+        raise FileNotFoundError(f"Input not found: {tsv_path}")
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    r_script_path = os.path.join(script_dir, "cvm_entropy.R")
+    if not os.path.isfile(r_script_path):
+        raise FileNotFoundError(f"R script not found: {r_script_path}")
+
+    out_png_path = os.path.join(sim_root, "cvm_entropy.png")
+
+    cmd = [
+        rscript_exe,
+        r_script_path,
+        tsv_path,
+        out_png_path,
+        str(width),
+        str(height),
+        str(dpi),
+    ]
+    try:
+        completed = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        if completed.stdout:
+            print(completed.stdout.strip())
+        if completed.stderr:
+            print(completed.stderr.strip())
+    except FileNotFoundError:
+        raise RuntimeError("Rscript not found. Please make sure R is installed and Rscript is in your PATH.")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"R script execution failed (exit code {e.returncode}):\nSTDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}"
+        )
+
+    if md_logger is not None:
+        md_logger.write_line("\n![CVM entropy ridge plot](cvm_entropy.png)\n")
+
+    return out_png_path
+
+def run_cvm_diversity_plot(sim_root, md_logger=None,
+                           width=8, height=5, dpi=900,
+                           rscript_exe="Rscript"):
+    sim_root = os.path.abspath(sim_root)
+
+    tsv_path = os.path.join(sim_root, "cvm_diversity_results.txt")
+    if not os.path.isfile(tsv_path):
+        raise FileNotFoundError(f"Input not found: {tsv_path}")
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    r_script_path = os.path.join(script_dir, "cvm_diversity.R")
+    if not os.path.isfile(r_script_path):
+        raise FileNotFoundError(f"R script not found: {r_script_path}")
+
+    out_png_path = os.path.join(sim_root, "cvm_diversity.png")
+
+    cmd = [
+        rscript_exe,
+        r_script_path,
+        tsv_path,
+        out_png_path,
+        str(width),
+        str(height),
+        str(dpi),
+    ]
+    try:
+        completed = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        if completed.stdout:
+            print(completed.stdout.strip())
+        if completed.stderr:
+            print(completed.stderr.strip())
+    except FileNotFoundError:
+        raise RuntimeError("Rscript not found. Please make sure R is installed and Rscript is in your PATH.")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"R script execution failed (exit code {e.returncode}):\nSTDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}"
+        )
+
+    if md_logger is not None:
+        md_logger.write_line("\n![CVM diversity ridge plot](cvm_diversity.png)\n")
+
+    return out_png_path
 
 # Main
 
@@ -626,8 +875,34 @@ def main():
             self.terminal.flush()
             self.log.flush()
 
+    class MarkdownLogger:
+        def __init__(self, md_path):
+            self.md_path = md_path
+            self.lines = []
+            with open(self.md_path, "w") as f:
+                f.write("# Model Adequacy Evaluation Summary\n\n")
+
+        def write(self, text):
+            with open(self.md_path, "a") as f:
+                f.write(text)
+
+        def write_line(self, line=""):
+            with open(self.md_path, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+
+        def write_heading(self, heading):
+            self.write(f"\n## {heading}\n\n")
+
+        def write_table(self, header, rows):
+            self.write("| " + " | ".join(header) + " |\n")
+            self.write("|" + "|".join(["-" * len(h) for h in header]) + "|\n")
+            for row in rows:
+                self.write("| " + " | ".join(str(x) for x in row) + " |\n")
+
     log_path = os.path.join(sim_root, "PBT.log")
     sys.stdout = Logger(log_path)
+    md_path = os.path.join(sim_root, "PBT_summary.md")
+    md_logger = MarkdownLogger(md_path)
 
     print("=" * 60)
     print(f"DATE AND TIME: {time.strftime('%a %b %d %H:%M:%S %Y', time.localtime(start_time))}")
@@ -681,6 +956,8 @@ def main():
         mean_ent_file = os.path.join(sim_root, "mean_entropy_results.txt")
         if os.path.isfile(mean_ent_file):
             find_best_fit_model_by_mean_difference_entropy(mean_ent_file)
+            write_md_best_model_by_mean_entropy(mean_ent_file, md_logger)
+            plot_path = run_entropy_ridge_plot(sim_root, md_logger)
         else:
             print("[INFO] mean_entropy_results.txt not found; skip mean-entropy summary.")
 
@@ -688,6 +965,8 @@ def main():
         mean_div_file = os.path.join(sim_root, "mean_diversity_results.txt")
         if os.path.isfile(mean_div_file):
             find_best_fit_model_by_mean_difference_diversity(mean_div_file)
+            write_md_best_model_by_mean_diversity(mean_div_file, md_logger)
+            plot_path = run_diversity_ridge_plot(sim_root, md_logger)
         else:
             print("[INFO] mean_diversity_results.txt not found; skip mean-diversity summary.")
 
@@ -696,6 +975,9 @@ def main():
         cvm_ent_file = os.path.join(sim_root, "cvm_entropy_results.txt")
         if os.path.isfile(cvm_ent_file):
             find_best_fit_model_by_cvm_entropy(cvm_ent_file)
+            best_model, sorted_models = find_best_fit_model_by_cvm_entropy(cvm_ent_file)
+            write_md_best_model_by_cvm_entropy(best_model, sorted_models, md_logger)
+            plot_path = run_cvm_entropy_plot(sim_root, md_logger)
         else:
             print("[INFO] cvm_entropy_results.txt not found; skip CvM-entropy summary.")
 
@@ -703,6 +985,9 @@ def main():
         cvm_div_file = os.path.join(sim_root, "cvm_diversity_results.txt")
         if os.path.isfile(cvm_div_file):
             find_best_fit_model_by_cvm_diversity(cvm_div_file)
+            best_model, sorted_models = find_best_fit_model_by_cvm_diversity(cvm_div_file)
+            write_md_best_model_by_cvm_diversity(best_model, sorted_models, md_logger)
+            plot_path = run_cvm_diversity_plot(sim_root, md_logger)
         else:
             print("[INFO] cvm_diversity_results.txt not found; skip CvM-diversity summary.")
 
