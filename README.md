@@ -37,7 +37,7 @@ Same as above, but applied to the comparison of sitewise entropy distributions.
 
 ## Overview
 
-runmodel.py is the core script of the project, designed to automate phylogenetic model fitting and sequence simulation based on [IQ-TREE](https://github.com/iqtree/iqtree3), and model adequacy evaluation using the Parametric Bootstrap Test (PBT)
+`runmodel.py` is the core script of the project, designed to automate phylogenetic model fitting and sequence simulation based on [IQ-TREE](https://github.com/iqtree/iqtree3), and model adequacy evaluation using the Parametric Bootstrap Test.
 
 The main functionalities of this script include:
 
@@ -46,8 +46,11 @@ The main functionalities of this script include:
 2. Systematically running a set of model combinations specified by the user (each consisting of an exchangeability matrix and a profile mixture model). For each model, the following four variants are evaluated:
 
    (1) FIX (fixed profile weights)
+
    (2) FIX + PMSF (fixed profile weights with the PMSF approach)
+
    (3) OPT (optimisation of profile weights using `-mwopt`)
+
    (4) OPT + PMSF (optimised profile weights with the PMSF approach)
 
 3. Performing sequence simulations for each fitted model using [AliSim](https://doi.org/10.1093/molbev/msac092).
@@ -91,6 +94,15 @@ Parameter Description:
 
 - `-optimise-tree`: If enabled, the tree optimised in the previous step is reused in subsequent FIX / FIX-PMSF / OPT / OPT-PMSF stages
 
+> **Note**  
+> 1. **Users are strongly encouraged to run the most complex mixture model first in order to estimate the maximum memory usage required for a single job.**
+>
+>    This can be achieved by placing the most complex model on the first line of models.txt. After ModelFinder finishes, this model will be fitted first, allowing users to plan or adjust memory usage in a timely manner.
+>
+>    Alternatively, users may choose to run the most complex model once in advance to ensure that its memory requirements do not exceed the available limit
+>
+> 2. During execution, **a large number of simulated datasets will be generated** (each model produces 100 simulated alignments with the same length as the original alignment). Users are therefore advised to **ensure sufficient disk space in advance to store these files**.
+
 The output folder structure after running runmodel.py is as follows:
 
 ```
@@ -110,13 +122,18 @@ The output folder structure after running runmodel.py is as follows:
    ├── mean_entropy_results.txt        <- The result file of the mean entropy
    ├── original.sitewise_diversity.txt        <- Per-site diversity records from the empirical dataset
    ├── original.sitewise_entropy.txt        <- Per-site entropy records from the empirical dataset
-   └── PBT.log        <- A complete log file recording all steps, messages, and model selection results of the analysis.
+   ├── PBT.log        <- A complete log file recording all steps, messages, and model selection results of the analysis.
+   └── PBT_summary.md        <- The main summary results file, containing numerical results of model evaluation and their visualisations.
 ```
 
 
 _______
 
-## Running Parametric Bootstrap Test Only
+## Optional: Running Parametric Bootstrap Test Only
+
+Running the above runmodel.py will force all models to be fitted in the following four variants: (1) FIX, (2) FIX + PMSF, (3) OPT, and (4) OPT + PMSF.
+
+Alternatively, users may fit the models in advance and, after generating simulated datasets for each model, directly use PBT.py to perform model adequacy evaluation. The procedure is as follows.
 
 To start the parametric bootstrap test, please make sure your input folder is structured as follows:
 

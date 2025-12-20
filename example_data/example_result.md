@@ -18,7 +18,7 @@ List of models sorted by |original − simulated| for entropy:
 | LG-C10opt-R3 | 0.271698 | 0.304256 | 0.015836 | 2.056 | 0.032558 |
 | EXM-C10Fopt-R3 | 0.271698 | 0.306948 | 0.016990 | 2.075 | 0.035251 |
 
-![Entropy ridge plot](mexample_result_ean_entropy.png)
+![Entropy ridge plot](mexample_result_mean_entropy.png)
 
 
 ## Mean Difference (Diversity)
