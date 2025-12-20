@@ -7,15 +7,19 @@ def extract_fmix_from_file(filepath):
         lines = f.readlines()
 
     fmix_entries = []
-    capture = False
+    capture_fmix = False
+    rate_model = ""
+    rate_values = []
 
-    for line in lines:
+    for idx, line in enumerate(lines):
+        # ----------- 提取 FMIX -------------
         if re.match(r"\s*No\s+Component\s+Rate\s+Weight\s+Parameters", line):
-            capture = True
+            capture_fmix = True
             continue
-        if capture:
+        if capture_fmix:
             if not line.strip() or not re.search(r'\d', line):
-                break
+                capture_fmix = False
+                continue
             parts = line.strip().split()
             if len(parts) >= 4:
                 component = parts[1]
@@ -25,7 +29,27 @@ def extract_fmix_from_file(filepath):
                     profile = profile_match.group(1)
                     fmix_entries.append(f"{profile}:1.0:{weight}")
 
-    return "FMIX{" + ",".join(fmix_entries) + "}" if fmix_entries else None
+        # ----------- 提取 R 模型信息 -------------
+        if line.startswith("Model of rate heterogeneity:"):
+            if "FreeRate" in line:
+                match_r = re.search(r'FreeRate with (\d+) categories', line)
+                if match_r:
+                    r_num = match_r.group(1)
+                    rate_model = f"R{r_num}"
+                    # 下一行通常是 rate 值，读取并解析
+                    if idx + 1 < len(lines) and lines[idx + 1].startswith("Site proportion and rates:"):
+                        rate_line = lines[idx + 1]
+                        numbers = re.findall(r"[\d.]+", rate_line)
+                        rate_values = numbers
+
+    # 组合 FMIX 和 R 结果
+    result_parts = []
+    if fmix_entries:
+        result_parts.append("FMIX{" + ",".join(fmix_entries) + "}")
+    if rate_model and rate_values:
+        result_parts.append(f"{rate_model}{{" + ",".join(rate_values) + "}}")
+
+    return "+".join(result_parts) if result_parts else None
 
 def main():
     if len(sys.argv) != 2:

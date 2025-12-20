@@ -125,13 +125,14 @@ def main():
         sys.exit(1)
 
     files = os.listdir(input_dir)
-    sitefreq_files = [f for f in files if f.endswith("step1.sitefreq")]
-    rate_files = [f for f in files if f.endswith("step2.rate")]
-    iqtree_files = [f for f in files if f.endswith("step2.iqtree")]
+    sitefreq_files = [f for f in files if f.endswith("_step1.sitefreq")]
+    rate_files = [f for f in files if f.endswith("_step2.rate")]
+    iqtree_files = [f for f in files if f.endswith("_step2.iqtree")]
 
-    sitefreq_map = {f.replace("-step1.sitefreq", ""): os.path.join(input_dir, f) for f in sitefreq_files}
-    rate_map = {f.replace("-step2.rate", ""): os.path.join(input_dir, f) for f in rate_files}
-    iqtree_map = {f.replace("-step2.iqtree", ""): os.path.join(input_dir, f) for f in iqtree_files}
+    sitefreq_map = {f.replace("_step1.sitefreq", ""): os.path.join(input_dir, f) for f in sitefreq_files}
+    rate_map = {f.replace("_step2.rate", ""): os.path.join(input_dir, f) for f in rate_files}
+    iqtree_map = {f.replace("_step2.iqtree", ""): os.path.join(input_dir, f) for f in iqtree_files}
+
 
     print("\nStep 1: Cleaning .rate files")
     for rate_file in rate_map.values():
