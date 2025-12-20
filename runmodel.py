@@ -153,6 +153,14 @@ def extract_invariable_proportion(iqtree_file):
                 return value
     raise RuntimeError("ERROR: Could not extract invariable sites proportion")
 
+def extract_gamma_shape(iqtree_file):
+    with open(iqtree_file) as f:
+        for line in f:
+            if "Gamma shape alpha:" in line:
+                value = line.split(":")[1].strip()
+                return value
+    raise RuntimeError("ERROR: Could not extract Gamma shape alpha")
+
 # =============================================================
 # STEP 3 RUN MODELS FROM TXT
 # =============================================================
@@ -218,6 +226,7 @@ def run_models_from_txt(
             
             has_i = "I" in rhas_without_f
             has_r = "R" in rhas_without_f
+            has_g4 = "G4" in rhas_without_f
             
             if has_i:
                 inv_prop = extract_invariable_proportion(iqtree_file)
@@ -229,6 +238,10 @@ def run_models_from_txt(
                 r_match = re.search(r'R(\d+)', modified_model)
                 if r_match:
                     modified_model = re.sub(r'R(\d+)', rf'R\g<1>{fr_values}', modified_model)
+            
+            if has_g4:
+                gamma_shape = extract_gamma_shape(iqtree_file)
+                modified_model = modified_model.replace("+G4", f"+G4{{{gamma_shape}}}")
 
             run_command([
                 str(iqtree_path),
@@ -454,6 +467,10 @@ def run_models_from_txt(
         if "I" in rhas_without_f:
             inv_prop = extract_invariable_proportion(iqtree_file)
             modified_base_model = modified_base_model.replace("+I", f"+I{{{inv_prop}}}")
+        
+        if "G4" in rhas_without_f:
+            gamma_shape = extract_gamma_shape(iqtree_file)
+            modified_base_model = modified_base_model.replace("+G4", f"+G4{{{gamma_shape}}}")
 
         sim_cmd = [
             str(iqtree_path),

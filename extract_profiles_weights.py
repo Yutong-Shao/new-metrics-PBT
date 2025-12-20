@@ -11,6 +11,7 @@ def extract_fmix_from_file(filepath):
     rate_model = ""
     rate_values = []
     inv_proportion = None
+    gamma_shape = None
 
     for idx, line in enumerate(lines):
         if re.match(r"\s*No\s+Component\s+Rate\s+Weight\s+Parameters", line):
@@ -36,6 +37,11 @@ def extract_fmix_from_file(filepath):
             if inv_match:
                 inv_proportion = inv_match.group(1)
 
+        if line.startswith("Gamma shape alpha:"):
+            gamma_match = re.search(r'Gamma shape alpha:\s*([\d.]+)', line)
+            if gamma_match:
+                gamma_shape = gamma_match.group(1)
+
         if line.startswith("Model of rate heterogeneity:"):
             if "FreeRate" in line:
                 match_r = re.search(r'FreeRate with (\d+) categories', line)
@@ -50,8 +56,9 @@ def extract_fmix_from_file(filepath):
     fmix_part = "FMIX{" + ",".join(fmix_entries) + "}" if fmix_entries else ""
     i_part = f"I{{{inv_proportion}}}" if inv_proportion else ""
     r_part = f"{rate_model}{{{','.join(rate_values)}}}" if rate_model and rate_values else ""
+    g4_part = f"G4{{{gamma_shape}}}" if gamma_shape else ""
 
-    return fmix_part, i_part, r_part
+    return fmix_part, i_part, r_part, g4_part
 
 
 def extract_prefix(iqtree_filename):
@@ -126,7 +133,7 @@ def main():
 
     for iqfile in iqtree_files:
         full_path = os.path.join(input_dir, iqfile)
-        fmix_part, i_part, r_part = extract_fmix_from_file(full_path)
+        fmix_part, i_part, r_part, g4_part = extract_fmix_from_file(full_path)
 
         if fmix_part:
             file_prefix = os.path.splitext(iqfile)[0]
@@ -137,6 +144,8 @@ def main():
                 content_parts.append(i_part)
             if r_part:
                 content_parts.append(r_part)
+            if g4_part:
+                content_parts.append(g4_part)
 
             final_string = "+".join(content_parts)
             out_path = os.path.join(input_dir, f"{file_prefix}.nex")
