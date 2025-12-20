@@ -17,8 +17,6 @@ conda activate pbt_new_metrics
  
 The closer the mean diversity of the simulated dataset is to that of the empirical dataset, the better the model is considered to capture the across site heterogeneity of amino acid composition in the real data.
 
-Evaluation results for this metric are written to the file: `mean_diversity_results.txt`
-
 > This method was proposed in [Giacomelli et al., 2025](https://doi.org/10.1093/gbe/evae273).
 
 ### 2. Mean Entropy
@@ -27,74 +25,98 @@ Evaluation results for this metric are written to the file: `mean_diversity_resu
 
 The closer the mean entropy of the simulated dataset is to that of the empirical dataset, the better the model is considered to describe the across site heterogeneity of amino acid composition in the real data.
 
-Evaluation results for this metric are written to the file: `mean_entropy_results.txt`
-
 ### 3. CvM Test on Sitewise Diversity
 
 For each simulated or empirical dataset, the diversity at all sites is calculated to generate a sitewise diversity distribution. *A two-sample Cramér–von Mises test* is used to compare the distribution from simulated data with that from the empirical data.
 
 The ***W² statistic*** from the Cramér–von Mises test is used as the core metric to quantify the difference between the two distributions. A smaller W² value (closer to 0) indicates that the simulated distribution is more similar to the empirical distribution.
 
-Evaluation results for this metric are written to the file: `cvm_diversity_results.txt`
-
 ### 4. CvM Test on Sitewise Entropy
 
 Same as above, but applied to the comparison of sitewise entropy distributions.
 
-Evaluation results for this metric are written to the file: `cvm_entropy_results.txt`
+## Overview
 
-## Step One: Model Fitting
+runmodel.py is the core script of the project, designed to automate phylogenetic model fitting and sequence simulation based on [IQ-TREE](https://github.com/iqtree/iqtree3), and model adequacy evaluation using the Parametric Bootstrap Test (PBT)
 
-This part of the phylogenetic analysis is performed using the [IQ-TREE](https://github.com/iqtree/iqtree3) software package.
-Below is an example pipeline using the **LG-C60opt-R6-PMSF** model:
+The main functionalities of this script include:
 
-1) Run the LG+C60+R6 model on the protein alignment file `alignment.nex`, using a guide tree, and optimize the profile weights of C60:
+1. Running ModelFinder to automatically identify the best-fitting rate heterogeneity model (RHAS).
 
-    ```
-    iqtree3 -s alignment.nex -m LG+C60+R6 -te guide.treefile -me 0.99 -safe -mwopt -pre LG_C60opt -prec 10
-    ```
+2. Systematically running a set of model combinations specified by the user (each consisting of an exchangeability matrix and a profile mixture model). For each model, the following four variants are evaluated:
 
-2) Use the `extract_profiles_weights.py` function to extract the optimized weights from the `LG_C60opt.iqtree` file generated in the first step. The weights will be saved as a `.txt` file in the same directory.
+   (1) FIX (fixed profile weights)
+   (2) FIX + PMSF (fixed profile weights with the PMSF approach)
+   (3) OPT (optimisation of profile weights using `-mwopt`)
+   (4) OPT + PMSF (optimised profile weights with the PMSF approach)
 
-    ```
-    python extract_profiles_weights.py <input_directory>
-    ```
+3. Performing sequence simulations for each fitted model using [AliSim](https://doi.org/10.1093/molbev/msac092).
 
-   Here, <input_directory> refers to the folder containing the `LG_C60opt.iqtree` file.
+4. After all simulations are completed, automatically invoking PBT.py to perform parametric bootstrap tests for model adequacy across all models.
+
+   The script supports both:
+
+   - Existing mixture models (e.g. LG+C60)
+
+   - User-defined mixture models, provided via the `-m` option as a `.nex` file (see `example_data/C10F.nex` for the required format)
+
+## Command
+
+```
+python runmodel.py \
+   -s alignment.fasta \
+   -iqtree /path/to/iqtree \
+   -txt models.txt \
+   -l <alignment length> \
+   -threads 30 \
+   [-m custom_models.nex] \
+   [-optimise-tree]
+```
+
+Parameter Description:
+
+- `-s`: Input amino acid alignment file, which ***must be in FASTA format***.
+
+- `-iqtree`: Path to the IQ-TREE executable. This can be a full path to the binary; if IQ-TREE is already available in the environment, it can also be specified as the executable name (e.g. `iqtree`or `iqtree3`).
+
+- `-txt`: Each line should contain one model, consisting of an exchangeability matrix followed by a profile mixture model (e.g. LG+C60). See `example_data/models.txt` for the required format.
+
+- `-l`: The total length of the input FASTA alignment, used for AliSim dataset simulations.
+
+- `-threads`: Number of threads specified by the user. Must be a numeric value.
+
+   Available options:
+
+- `-m`: User-defined model definition file (.nex). See `example_data/C10F.nex` for the required format.
+
+- `-optimise-tree`: If enabled, the tree optimised in the previous step is reused in subsequent FIX / FIX-PMSF / OPT / OPT-PMSF stages
+
+The output folder structure after running runmodel.py is as follows:
+
+```
+—— output_model
+—— output_simulation
+   ├── model_1        <- Contains m simulated datasets in FASTA format
+   │   ├── simulate_1.fa
+   │   ├── simulate_2.fa
+   │   ├── ...
+   │   └── simulate_m.fa
+   ├── model_2
+   ├── ...
+   ├── model_n
+   ├── cvm_diversity_results.txt        <- The result file of the CvM test on sitewise diversity
+   ├── cvm_entropy_results.txt        <- The result file of the CvM test on sitewise entropy
+   ├── mean_diversity_results.txt        <- The result file of the mean diversity
+   ├── mean_entropy_results.txt        <- The result file of the mean entropy
+   ├── original.sitewise_diversity.txt        <- Per-site diversity records from the empirical dataset
+   ├── original.sitewise_entropy.txt        <- Per-site entropy records from the empirical dataset
+   └── PBT.log        <- A complete log file recording all steps, messages, and model selection results of the analysis.
+```
 
 
-3) Define a new model based on the optimized weights and save it as `C60opt.nex`. Then run the first phase of the PMSF method in IQ-TREE to estimate the mixture model parameters and infer the site-specific frequency profile.
+_______
 
-    ```
-    iqtree3 -s alignment.nex -ft guide.treefile -m C60opt -mdef C60opt.nex -safe -pre LG_C60opt_PMSF_step1 -n 0
-    ```
-
-4) Run the second phase of the PMSF method, performing phylogenetic inference using the site-frequency profile obtained from the previous step.
-
-    ```
-    iqtree3 -s alignment.nex -fs LG_C60opt_PMSF_step1.sitefreq -m C60opt -mdef C60opt.nex -safe -pre infer/LG_C60opt_PMSF_step2 --wbtl -wsr -bb 1000
-    ```
-
-5) Use the `combine_sitefq_tate.py` function to generate a `LG_C60opt_PMSF.nex` file. This file defines a partition model where each site is treated as a separate partition, which is required for sequence simulation.
-
-    ```
-    python combine_sitefq_tate.py <input_folder>
-    ```
-
-    Note:
-    
-    To use `combine_sitefq_tate.py`, please make sure the files `XX_step1.sitefreq`, `XX_step2.rate`, and `XX_step2.iqtree` are all in the same folder, and share the same filename prefix.
-
-6) Use the [Alisim](https://doi.org/10.1093/molbev/msac092) function in IQ-TREE to simulate sequence alignments based on the inferred partition model and tree.
-
-   ```
-   iqtree3 --alisim LG_C60opt_PMSF/seq --seqtype AA -p LG_C60opt_PMSF.nex -t LG_C60opt_PMSF_step2.contree --length [seq_length] --out-format fasta --num-alignments 100
-   ```
-
-For more details, please refer to the `data/tutorial.pdf` file.
-
-
-## Step Two: Starting Parametric Bootstrap Test
+## Running Parametric Bootstrap Test Only
 
 To start the parametric bootstrap test, please make sure your input folder is structured as follows:
 
@@ -132,24 +154,3 @@ python PBT.py <SimRootFolder> <OriginalAlignment>  [options]
 - `-cvment` : run CvM-entropy pipeline
 
 - `-T N`: number of CPUs to use per model (default: 1)
-
-The output folder structure after running PBT.py is as follows:
-
-```
-—— data
-   ├── model_1        <- Contains m simulated datasets in FASTA format
-   │   ├── simulate_1.fa
-   │   ├── simulate_2.fa
-   │   ├── ...
-   │   └── simulate_m.fa
-   ├── model_2
-   ├── ...
-   ├── model_n
-   ├── cvm_diversity_results.txt        <- The result file of the CvM test on sitewise diversity
-   ├── cvm_entropy_results.txt        <- The result file of the CvM test on sitewise entropy
-   ├── mean_diversity_results.txt        <- The result file of the mean diversity
-   ├── mean_entropy_results.txt        <- The result file of the mean entropy
-   ├── original.sitewise_diversity.txt        <- Per-site diversity records from the empirical dataset
-   ├── original.sitewise_entropy.txt        <- Per-site entropy records from the empirical dataset
-   └── PBT.log        <- A complete log file recording all steps, messages, and model selection results of the analysis.
-```

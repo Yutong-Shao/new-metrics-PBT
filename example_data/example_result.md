@@ -18,7 +18,7 @@ List of models sorted by |original − simulated| for entropy:
 | LG-C10opt-R3 | 0.271698 | 0.304256 | 0.015836 | 2.056 | 0.032558 |
 | EXM-C10Fopt-R3 | 0.271698 | 0.306948 | 0.016990 | 2.075 | 0.035251 |
 
-![Entropy ridge plot](mean_entropy.png)
+![Entropy ridge plot](mexample_result_ean_entropy.png)
 
 
 ## Mean Difference (Diversity)
@@ -38,7 +38,7 @@ List of models sorted by |original − simulated| for diversity:
 | LG-C10opt-R3 | 1.570780 | 1.667434 | 0.035533 | 2.720 | 0.096654 |
 | EXM-C10Fopt-R3 | 1.570780 | 1.704141 | 0.038912 | 3.427 | 0.133361 |
 
-![Diversity ridge plot](mean_diversity.png)
+![Diversity ridge plot](example_result_mean_diversity.png)
 
 
 ## Cramer-von Mises Test On Sitewise Entropy
@@ -58,7 +58,7 @@ List of models sorted by W² statistic`:
 | LG-C10fix-R3-PMSF | 0.242645 |
 | EXM-C10Ffix-R3-PMSF | 0.269618 |
 
-![CVM entropy ridge plot](cvm_entropy.png)
+![CVM entropy ridge plot](example_result_cvm_entropy.png)
 
 
 ## Cramer-von Mises Test On Sitewise Diversity
@@ -78,5 +78,5 @@ List of models sorted by W² statistic:
 | LG-C10opt-R3-PMSF | 0.352212 |
 | LG-C10fix-R3-PMSF | 0.354241 |
 
-![CVM diversity ridge plot](cvm_diversity.png)
+![CVM diversity ridge plot](example_result_cvm_diversity.png)
 
